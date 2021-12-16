@@ -1,19 +1,18 @@
 _base_ = '../default.py'
 
-expname = 'dvgo_Character'
-basedir = './logs/blended_mvs'
+expname = 'llff_oldman'
+basedir = './logs/llff'
 
 data = dict(
-    datadir='./data/BlendedMVS/Character/',
-    dataset_type='blendedmvs',
-    inverse_y=True,
-    white_bkgd=True,
+    datadir='./data/llff/oldman',
+    dataset_type='llff',
+    factor=1
 )
 
 
-coarse_train = dict(
+fine_train = dict(
     N_iters=10000,                # number of optimization steps
-    N_rand=512,                  # batch size (number of random rays per optimization step)
+    N_rand=2048,                  # batch size (number of random rays per optimization step)
     lrate_density=1e-1,           # lr of density voxel grid
     lrate_k0=1e-1,                # lr of color/feature voxel grid
     lrate_rgbnet=1e-3,            # lr of the mlp to preduct view-dependent color

@@ -31,7 +31,7 @@ data = dict(
 '''
 coarse_train = dict(
     N_iters=10000,                # number of optimization steps
-    N_rand=8192,                  # batch size (number of random rays per optimization step)
+    N_rand=2048,                  # batch size (number of random rays per optimization step)
     lrate_density=1e-1,           # lr of density voxel grid
     lrate_k0=1e-1,                # lr of color/feature voxel grid
     lrate_rgbnet=1e-3,            # lr of the mlp to preduct view-dependent color
@@ -53,7 +53,8 @@ fine_train = deepcopy(coarse_train)
 fine_train.update(dict(
     N_iters=20000,
     pervoxel_lr=False,
-    ray_sampler='in_maskcache',
+    N_rand=1024,  
+    ray_sampler='random',
     weight_entropy_last=0.001,
     weight_rgbper=0.01,
     pg_scale=[1000, 2000, 3000],
@@ -62,8 +63,8 @@ fine_train.update(dict(
 ''' Template of model and rendering options
 '''
 coarse_model_and_render = dict(
-    num_voxels=1024000,           # expected number of voxel
-    num_voxels_base=1024000,      # to rescale delta distance
+    num_voxels=324000,           # expected number of voxel
+    num_voxels_base=324000,      # to rescale delta distance
     nearest=False,                # nearest interpolation
     pre_act_density=False,        # pre-activated trilinear interpolation
     in_act_density=False,         # in-activated trilinear interpolation
