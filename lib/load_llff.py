@@ -263,6 +263,25 @@ def spherify_poses(poses, bds, depths):
     new_poses = np.concatenate([new_poses, np.broadcast_to(poses[0,:3,-1:], new_poses[:,:3,-1:].shape)], -1)
     poses_reset = np.concatenate([poses_reset[:,:3,:4], np.broadcast_to(poses[0,:3,-1:], poses_reset[:,:3,-1:].shape)], -1)
 
+    # Get centers of every pose
+    new_poses_centers = new_poses[:,:3,3]
+    poses_reset_centers = poses_reset[:,:3,3]
+    all_centers = np.concatenate([poses_reset_centers, new_poses_centers], axis=0     )
+
+    # Get the mean center 
+    mean_center = np.mean(all_centers, axis=0, keepdims=True) 
+     
+    # Of these poses, get the norms of all these centers and get the max norm, from the distance to the mean center
+    norms_centers = np.linalg.norm(all_centers - mean_center, axis=1)
+    biggest_norm = np.max(norms_centers)
+
+    # Finally, just normalize the centers of the poses with the max norm. 
+    new_poses[:,:3,3] = (new_poses[:,:3,3] - mean_center  )/ (biggest_norm*1.1)
+    poses_reset[:,:3,3] = ( poses_reset[:,:3,3] - mean_center  )/ (biggest_norm*1.1)
+
+
+
+
     return poses_reset, new_poses, bds, depths
 
 

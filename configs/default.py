@@ -22,7 +22,7 @@ data = dict(
 
     # Below are forward-facing llff specific settings. Not support yet.
     ndc=False,                    # use ndc coordinate (only for forward-facing; not support yet)
-    spherify=False,               # inward-facing
+    spherify=True,               # inward-facing
     llffhold=8,                   # testsplit
     load_depths=False,            # load depth
 )

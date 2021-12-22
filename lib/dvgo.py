@@ -254,7 +254,7 @@ class DirectVoxGO(torch.nn.Module):
         # 1. determine the maximum number of query points to cover all possible rays
         N_samples = int(np.linalg.norm(np.array(self.density.shape[2:])+1) / stepsize) + 1
         # 2. determine the two end-points of ray bbox intersection
-        vec = torch.where(rays_d==0, torch.full_like(rays_d, 1e-6), rays_d)
+        vec = torch.where(rays_d==0, torch.full_like(rays_d, 1e-6), rays_d) # This equation is just putting a offset so not to divide by 0
         rate_a = (self.xyz_max - rays_o) / vec
         rate_b = (self.xyz_min - rays_o) / vec
         t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far)
