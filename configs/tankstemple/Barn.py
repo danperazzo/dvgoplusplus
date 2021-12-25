@@ -9,6 +9,7 @@ data = dict(
     inverse_y=True,
     load2gpu_on_the_fly=True,
     white_bkgd=True,
+    factor=2
 )
 
 coarse_train = dict(
@@ -33,8 +34,8 @@ coarse_train = dict(
 
 
 coarse_model_and_render = dict(
-    num_voxels=94000,           # expected number of voxel
-    num_voxels_base=94000,      # to rescale delta distance
+    num_voxels=74000,           # expected number of voxel
+    num_voxels_base=74000,      # to rescale delta distance
     nearest=False,                # nearest interpolation
     pre_act_density=False,        # pre-activated trilinear interpolation
     in_act_density=False,         # in-activated trilinear interpolation

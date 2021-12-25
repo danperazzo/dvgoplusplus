@@ -205,8 +205,11 @@ class DirectVoxGO(torch.nn.Module):
                 vec = torch.where(rays_d==0, torch.full_like(rays_d, 1e-6), rays_d)
                 rate_a = (self.xyz_max - rays_o) / vec
                 rate_b = (self.xyz_min - rays_o) / vec
-                t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far)
-                t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far)
+                
+                far_fg = far # torch.max(self.intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+
+                t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far_fg)
+                t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far_fg)
                 step = stepsize * self.voxel_size * rng
                 interpx = (t_min[...,None] + step/rays_d.norm(dim=-1,keepdim=True))
                 rays_pts = rays_o[...,None,:] + rays_d[...,None,:] * interpx[...,None]
@@ -249,16 +252,38 @@ class DirectVoxGO(torch.nn.Module):
             return ret_lst[0]
         return ret_lst
 
+    def intersect_sphere(self, ray_o, ray_d):
+        '''
+        ray_o, ray_d: [..., 3]
+        compute the depth of the intersection point between this ray and unit sphere
+
+        FROM NERF++ CODE
+        '''
+        # note: d1 becomes negative if this mid point is behind camera
+        d1 = -torch.sum(ray_d * ray_o, dim=-1) / torch.sum(ray_d * ray_d, dim=-1)
+        p = ray_o + d1.unsqueeze(-1) * ray_d
+        # consider the case where the ray does not intersect the sphere
+        ray_d_cos = 1. / torch.norm(ray_d, dim=-1)
+        p_norm_sq = torch.sum(p * p, dim=-1)
+        if (p_norm_sq >= 1.).any():
+            raise Exception('Not all your cameras are bounded by the unit sphere; please make sure the cameras are normalized properly!')
+        d2 = torch.sqrt(1. - p_norm_sq) * ray_d_cos
+
+        return d1 + d2
+
     def sample_ray(self, rays_o, rays_d, near, far, stepsize, is_train=False, **render_kwargs):
         '''Sample query points on rays'''
+        # 0. First, determine the far distance for the rays
+        far_fg = far # torch.max(self.intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+
         # 1. determine the maximum number of query points to cover all possible rays
         N_samples = int(np.linalg.norm(np.array(self.density.shape[2:])+1) / stepsize) + 1
         # 2. determine the two end-points of ray bbox intersection
         vec = torch.where(rays_d==0, torch.full_like(rays_d, 1e-6), rays_d) # This equation is just putting a offset so not to divide by 0
         rate_a = (self.xyz_max - rays_o) / vec
         rate_b = (self.xyz_min - rays_o) / vec
-        t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far)
-        t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far)
+        t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far_fg)
+        t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far_fg)
         # 3. check wheter a raw intersect the bbox or not
         mask_outbbox = (t_max <= t_min)
         # 4. sample points on each ray

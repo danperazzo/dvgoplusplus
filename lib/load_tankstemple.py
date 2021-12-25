@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import cv2
 
 
-def load_tankstemple_data(basedir):
+def load_tankstemple_data(basedir,args):
     pose_paths = sorted(glob.glob(os.path.join(basedir, 'pose', '*txt')))
     rgb_paths = sorted(glob.glob(os.path.join(basedir, 'rgb', '*png')))
 
@@ -18,7 +18,12 @@ def load_tankstemple_data(basedir):
     for i, (pose_path, rgb_path) in enumerate(zip(pose_paths, rgb_paths)):
         i_set = int(os.path.split(rgb_path)[-1][0])
         all_poses.append(np.loadtxt(pose_path).astype(np.float32))
-        all_imgs.append((imageio.imread(rgb_path) / 255.).astype(np.float32))
+
+        img = (imageio.imread(rgb_path) / 255.).astype(np.float32)
+        dim_tgt = ( img.shape[1]//args.factor, img.shape[0]//args.factor     )
+        img_reshape = cv2.resize(img, dim_tgt, interpolation = cv2.INTER_AREA)
+
+        all_imgs.append(img_reshape)
         i_split[i_set].append(i)
 
     imgs = np.stack(all_imgs, 0)
@@ -28,6 +33,7 @@ def load_tankstemple_data(basedir):
     path_intrinsics = os.path.join(basedir, 'intrinsics.txt')
     H, W = imgs[0].shape[:2]
     K = np.loadtxt(path_intrinsics)
+    K[:2,:3] = K[:2,:3] / args.factor # diminished the images by the factor for resizing
     focal = float(K[0,0])
 
     path_traj = os.path.join(basedir, 'test_traj.txt')
