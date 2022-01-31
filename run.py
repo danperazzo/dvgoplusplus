@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 from lib import utils, dvgo
 from lib.load_data import load_data
+from lib.utils import intersect_sphere
 
 
 def config_parser():
@@ -171,7 +172,9 @@ def compute_bbox_by_cam_frustrm(args, cfg, HW, Ks, poses, i_train, near, far, **
                 H=H, W=W, K=K, c2w=c2w,
                 ndc=cfg.data.ndc, inverse_y=cfg.data.inverse_y,
                 flip_x=cfg.data.flip_x, flip_y=cfg.data.flip_y)
-        pts_nf = torch.stack([rays_o+viewdirs*near, rays_o+viewdirs*far])
+        far_fg = (intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+
+        pts_nf = torch.stack([rays_o+viewdirs*near, rays_o+viewdirs*far_fg[..., None ]  ])
         xyz_min = torch.minimum(xyz_min, pts_nf.amin((0,1,2)))
         xyz_max = torch.maximum(xyz_max, pts_nf.amax((0,1,2)))
     print('compute_bbox_by_cam_frustrm: xyz_min', xyz_min)
