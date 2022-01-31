@@ -9,6 +9,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def intersect_sphere(ray_o, ray_d):
+        '''
+        ray_o, ray_d: [..., 3]
+        compute the depth of the intersection point between this ray and unit sphere
+
+        FROM NERF++ CODE
+        '''
+        # note: d1 becomes negative if this mid point is behind camera
+        d1 = -torch.sum(ray_d * ray_o, dim=-1) / torch.sum(ray_d * ray_d, dim=-1)
+        p = ray_o + d1.unsqueeze(-1) * ray_d
+        # consider the case where the ray does not intersect the sphere
+        ray_d_cos = 1. / torch.norm(ray_d, dim=-1)
+        p_norm_sq = torch.sum(p * p, dim=-1)
+        if (p_norm_sq >= 1.).any():
+            raise Exception('Not all your cameras are bounded by the unit sphere; please make sure the cameras are normalized properly!')
+        d2 = torch.sqrt(1. - p_norm_sq) * ray_d_cos
+
+        return d1 + d2
+
 ''' Misc
 '''
 mse2psnr = lambda x : -10. * torch.log10(x)

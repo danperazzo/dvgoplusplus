@@ -6,6 +6,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from lib.utils import intersect_sphere
+
+HUGE_NUMBER = 1e10
+TINY_NUMBER = 1e-6      # float32 only has 7 decimal digits precision
 
 
 '''Model'''
@@ -19,6 +23,8 @@ class DirectVoxGO(torch.nn.Module):
                  rgbnet_dim=0, rgbnet_direct=False, rgbnet_full_implicit=False,
                  rgbnet_depth=3, rgbnet_width=128,
                  posbase_pe=5, viewbase_pe=4,
+                 rgbnet_bg_depth=3, rgbnet_bg_width=128,
+                 posbase_bg_pe=5, viewbase_bg_pe=4,rgbnet_bg_dim=12,world_scale_bg = None,
                  **kwargs):
         super(DirectVoxGO, self).__init__()
         self.register_buffer('xyz_min', torch.Tensor(xyz_min))
@@ -31,6 +37,7 @@ class DirectVoxGO(torch.nn.Module):
             print('dvgo: using pre_act_density may results in worse quality !!')
         if self.in_act_density:
             print('dvgo: using in_act_density may results in worse quality !!')
+
 
         # determine based grid resolution
         self.num_voxels_base = num_voxels_base
@@ -53,8 +60,56 @@ class DirectVoxGO(torch.nn.Module):
             'rgbnet_full_implicit': rgbnet_full_implicit,
             'rgbnet_depth': rgbnet_depth, 'rgbnet_width': rgbnet_width,
             'posbase_pe': posbase_pe, 'viewbase_pe': viewbase_pe,
+            'posbase_bg_pe': posbase_bg_pe, 'viewbase_bg_pe': viewbase_bg_pe,
+            'rgbnet_bg_depth': rgbnet_bg_depth, 'rgbnet_bg_width': rgbnet_bg_width,'rgbnet_bg_dim':rgbnet_bg_dim,'world_scale_bg':world_scale_bg
         }
         self.rgbnet_full_implicit = rgbnet_full_implicit
+
+        # Set background true
+        self.bg_color = True
+        if self.bg_color:
+          # feature voxel grid + shallow MLP  (fine stage)
+            if self.rgbnet_full_implicit:
+                self.k0_bg_dim = 0
+            else:
+                self.k0_bg_dim = rgbnet_bg_dim
+            
+            if world_scale_bg is None:
+                self.world_size_bg = self.world_size.clone()
+                self.rgbnet_kwargs['world_scale_bg'] = self.world_size_bg
+            else:
+                self.world_size_bg = world_scale_bg
+            self.density_bg = torch.nn.Parameter(torch.zeros([1, 1, *self.world_size_bg]))
+
+
+            self.k0_bg = torch.nn.Parameter(torch.zeros([1, self.k0_bg_dim, *self.world_size_bg]))
+            self.register_buffer('posfreq_bg', torch.FloatTensor([(2**i) for i in range(posbase_bg_pe)]))
+            self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
+
+            # Set dimensions from spatial position and viewdirs
+            dim0_bg = (3+3*posbase_bg_pe*2) + (3+3*viewbase_bg_pe*2)
+
+            # Sum dimension witjh dimension from k0
+            if self.rgbnet_full_implicit:
+                pass
+            elif rgbnet_direct:
+                dim0_bg += self.k0_bg_dim
+            else:
+                dim0_bg += self.k0_bg_dim-3
+
+
+            # Set rgbnet background
+            self.rgbnet_bg = nn.Sequential(
+                nn.Linear(dim0_bg, rgbnet_bg_width), nn.ReLU(inplace=True),
+                *[
+                    nn.Sequential(nn.Linear(rgbnet_bg_width, rgbnet_bg_width), nn.ReLU(inplace=True))
+                    for _ in range(rgbnet_bg_depth-2)
+                ],
+                nn.Linear(rgbnet_width, 3),
+            )
+
+            nn.init.constant_(self.rgbnet_bg[-1].bias, 0)
+
         if rgbnet_dim <= 0:
             # color voxel grid  (coarse stage)
             self.k0_dim = 3
@@ -206,10 +261,12 @@ class DirectVoxGO(torch.nn.Module):
                 rate_a = (self.xyz_max - rays_o) / vec
                 rate_b = (self.xyz_min - rays_o) / vec
                 
-                far_fg = far # torch.max(self.intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+                far_fg = (intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+        
+                near_fg = (near*torch.ones(far_fg.shape))
 
-                t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far_fg)
-                t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far_fg)
+                t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near_fg, max=far_fg)
+                t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near_fg, max=far_fg)
                 step = stepsize * self.voxel_size * rng
                 interpx = (t_min[...,None] + step/rays_d.norm(dim=-1,keepdim=True))
                 rays_pts = rays_o[...,None,:] + rays_d[...,None,:] * interpx[...,None]
@@ -252,6 +309,77 @@ class DirectVoxGO(torch.nn.Module):
             return ret_lst[0]
         return ret_lst
 
+    def to_spherical(self, xyz_1_r):
+      '''Function to transform from x,y,z coordinates to spherical coordinates'''
+      # Get x,y and z positions
+      x_pos = xyz_1_r[...,0]
+      y_pos = xyz_1_r[...,1]
+      z_pos = xyz_1_r[...,2]
+      
+      r_pos = xyz_1_r[...,3] # Just in case, sum by a tiny number so we dont overflow
+      theta_pos= torch.acos(z_pos)/torch.pi  # Perform some transformations to ensure the theta is between -0.5 and 0.4
+      phi_pos = torch.atan2(y_pos,x_pos)/(2*torch.pi) + 0.5  # Just sum by Pi so that our coordinates goes from -0.5 to 0.5
+
+      sphc_coord = torch.stack([theta_pos,phi_pos, r_pos],dim=-1)
+
+      return sphc_coord
+
+    def grid_sampler_bg(self, xyz_1_r, *grids, mode=None, align_corners=True):
+        '''Wrapper for the interp operatio, reserved for the background operation'''
+        if mode is None:
+            # bilinear is actually trilinear if 5D input is given to grid_sample
+            mode = 'nearest' if self.nearest else 'bilinear'
+
+        # Project to spherical coordinates
+        xyz_prooj = self.to_spherical(xyz_1_r)
+        
+        shape = xyz_prooj.shape[:-1]
+        xyz_prooj = xyz_prooj.reshape(1,1,1,-1,3)
+
+        ind_norm = xyz_prooj.flip((-1,)) 
+        ret_lst = [
+            # TODO: use `rearrange' to make it readable
+            F.grid_sample(grid, ind_norm, mode=mode, align_corners=align_corners).reshape(grid.shape[1],-1).T.reshape(*shape,grid.shape[1]).squeeze()
+            for grid in grids
+        ]
+        if len(ret_lst) == 1:
+            return ret_lst[0]
+        return ret_lst
+    ######################################################################################
+    # wrapper to simplify the use of nerfnet
+    ######################################################################################
+    def depth2pts_outside(self,ray_o, ray_d, depth):
+        '''
+        ray_o, ray_d: [..., 3]
+        depth: [...]; inverse of distance to sphere origin
+        '''
+        # note: d1 becomes negative if this mid point is behind camera
+        d1 = -torch.sum(ray_d * ray_o, dim=-1) / torch.sum(ray_d * ray_d, dim=-1)
+        p_mid = ray_o + d1.unsqueeze(-1) * ray_d
+        p_mid_norm = torch.norm(p_mid, dim=-1)
+        ray_d_cos = 1. / torch.norm(ray_d, dim=-1)
+        d2 = torch.sqrt(1. - p_mid_norm * p_mid_norm) * ray_d_cos
+        p_sphere = ray_o + (d1 + d2).unsqueeze(-1) * ray_d
+
+        rot_axis = torch.cross(ray_o, p_sphere, dim=-1)
+        rot_axis = rot_axis / torch.norm(rot_axis, dim=-1, keepdim=True)
+        phi = torch.asin(p_mid_norm)
+        theta = torch.asin(p_mid_norm * depth)  # depth is inside [0, 1]
+        rot_angle = (phi - theta).unsqueeze(-1)     # [..., 1]
+
+        # now rotate p_sphere
+        # Rodrigues formula: https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+        p_sphere_new = p_sphere * torch.cos(rot_angle) + \
+                       torch.cross(rot_axis, p_sphere, dim=-1) * torch.sin(rot_angle) + \
+                       rot_axis * torch.sum(rot_axis*p_sphere, dim=-1, keepdim=True) * (1.-torch.cos(rot_angle))
+        p_sphere_new = p_sphere_new / torch.norm(p_sphere_new, dim=-1, keepdim=True)
+        pts = torch.cat((p_sphere_new, depth.unsqueeze(-1)), dim=-1)
+
+        # now calculate conventional depth
+        depth_real = 1. / (depth + TINY_NUMBER) * torch.cos(theta) * ray_d_cos + d1
+        return pts, depth_real
+
+
     def intersect_sphere(self, ray_o, ray_d):
         '''
         ray_o, ray_d: [..., 3]
@@ -271,10 +399,43 @@ class DirectVoxGO(torch.nn.Module):
 
         return d1 + d2
 
+    def sample_bg_points(self, rays_o, rays_d, rays_pts, stepsize,  **render_kwargs):
+        '''Sample query of background points on rays'''
+
+        # 1. determine the maximum number of query points to cover all possible rays
+        N_samples = int(np.linalg.norm(np.array(self.density.shape[2:])+1) / stepsize) + 1
+
+        # Squash bg_rays so that we can perform the necessary computations
+        bg_rays_o = torch.reshape(rays_o, (-1, 3))
+        bg_rays_d = torch.reshape(rays_d, (-1, 3))
+
+        bg_rays_o = bg_rays_o.unsqueeze(1).repeat(1,N_samples,1)
+        bg_rays_d = bg_rays_d.unsqueeze(1).repeat(1,N_samples,1)
+        
+        # Sample the inverse depths so that we can hav the background depths
+        bg_z_vals = torch.linspace(0., 1., N_samples).unsqueeze(0).repeat(bg_rays_d.shape[0], 1)
+        rays_pts_bg, _ = self.depth2pts_outside(bg_rays_o, bg_rays_d, bg_z_vals)
+
+        # Return to original shape
+        shape_bg = rays_pts.shape[:-1] + (4,)# Get the shape for the 4D background representation
+        rays_pts_bg = torch.reshape(rays_pts_bg, shape_bg )
+
+        # Get the depth values and dists
+        #bg_z_vals = torch.flip(bg_z_vals, dims=[-1,])
+        #bg_dists = bg_z_vals[..., :-1] - bg_z_vals[..., 1:]
+        #bg_dists = torch.cat((bg_dists, HUGE_NUMBER * torch.ones_like(bg_dists[..., 0:1])), dim=-1)  # [..., N_samples]
+        #bg_dists = torch.reshape(bg_dists, rays_pts.shape[:-1]) # Perform reshape just in case
+
+        #return rays_pts_bg, bg_dists
+        return rays_pts_bg
+
+
     def sample_ray(self, rays_o, rays_d, near, far, stepsize, is_train=False, **render_kwargs):
         '''Sample query points on rays'''
         # 0. First, determine the far distance for the rays
-        far_fg = far # torch.max(self.intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+        far_fg = (intersect_sphere(rays_o, rays_d)) # For debugging purposes, we will just get the maximum foreground
+        
+        near_fg = (near*torch.ones(far_fg.shape))
 
         # 1. determine the maximum number of query points to cover all possible rays
         N_samples = int(np.linalg.norm(np.array(self.density.shape[2:])+1) / stepsize) + 1
@@ -282,8 +443,8 @@ class DirectVoxGO(torch.nn.Module):
         vec = torch.where(rays_d==0, torch.full_like(rays_d, 1e-6), rays_d) # This equation is just putting a offset so not to divide by 0
         rate_a = (self.xyz_max - rays_o) / vec
         rate_b = (self.xyz_min - rays_o) / vec
-        t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near, max=far_fg)
-        t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near, max=far_fg)
+        t_min = torch.minimum(rate_a, rate_b).amax(-1).clamp(min=near_fg, max=far_fg)
+        t_max = torch.maximum(rate_a, rate_b).amin(-1).clamp(min=near_fg, max=far_fg)
         # 3. check wheter a raw intersect the bbox or not
         mask_outbbox = (t_max <= t_min)
         # 4. sample points on each ray
@@ -366,10 +527,50 @@ class DirectVoxGO(torch.nn.Module):
                 rgb = torch.sigmoid(rgb_logit)
 
         # Ray marching
-        rgb_marched = (weights[...,None] * rgb).sum(-2) + alphainv_cum[...,[-1]] * render_kwargs['bg']
+
+        if self.bg_color:
+
+          rays_pts_bg = self.sample_bg_points(rays_o=rays_o,rays_d=rays_d,rays_pts=rays_pts, **render_kwargs)
+
+          # In here, we create the density_bg and alpha_bg for background
+          density_bg = self.grid_sampler_bg(rays_pts_bg,  self.density_bg)
+          alpha_bg = self.activate_density(density_bg, None)
+
+          weights_bg, alphainv_cum_bg = get_ray_marching_ray(alpha_bg )
+          mask_bg = ( weights_bg > self.fast_color_thres   )
+
+          k0_bg = torch.zeros(*weights_bg.shape, self.k0_bg_dim).to(weights_bg)
+
+          k0_view_bg = k0_bg
+
+          viewdirs_bg_emb = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
+          viewdirs_bg_emb = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
+
+          rays_xyz_bg = self.to_spherical( rays_pts_bg[mask_bg] )
+          xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
+          xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
+
+          rgb_bg_feat = torch.cat([
+                k0_view_bg[mask_bg],
+                xyz_emb_bg,
+                # TODO: use `rearrange' to make it readable
+                viewdirs_bg_emb.flatten(0,-2).unsqueeze(-2).repeat(1,weights_bg.shape[-1],1)[mask_bg.flatten(0,-2)]
+            ], -1)
+
+          rgb_bg_logit = torch.zeros(*weights_bg.shape, 3).to(weights_bg)
+          rgb_bg_logit[mask_bg] = self.rgbnet_bg(rgb_bg_feat)
+
+          rgb_bg = torch.sigmoid(rgb_bg_logit)
+
+          bg_color = (weights_bg[...,None] * rgb_bg).sum(-2) 
+
+        else:
+          bg_color = render_kwargs['bg']
+
+        rgb_marched = (weights[...,None] * rgb).sum(-2) + alphainv_cum[...,[-1]] * bg_color
         rgb_marched = rgb_marched.clamp(0, 1)
         depth = (rays_o[...,None,:] - rays_pts).norm(dim=-1)
-        depth = (weights * depth).sum(-1) + alphainv_cum[...,-1] * render_kwargs['far']
+        depth = (weights * depth).sum(-1) + alphainv_cum[...,-1]
         disp = 1 / depth
         ret_dict.update({
             'alphainv_cum': alphainv_cum,
