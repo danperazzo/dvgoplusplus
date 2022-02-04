@@ -30,7 +30,7 @@ data = dict(
 ''' Template of training options
 '''
 coarse_train = dict(
-    N_iters=10000,                # number of optimization steps
+    N_iters=1,                # number of optimization steps
     N_rand=2048,                  # batch size (number of random rays per optimization step)
     lrate_density=1e-1,           # lr of density voxel grid
     lrate_k0=1e-1,                # lr of color/feature voxel grid
@@ -71,8 +71,8 @@ coarse_model_and_render = dict(
     nearest=False,                # nearest interpolation
     pre_act_density=False,        # pre-activated trilinear interpolation
     in_act_density=False,         # in-activated trilinear interpolation
-    bbox_thres=1e-3,              # threshold to determine known free-space in the fine stage
-    mask_cache_thres=1e-3,        # threshold to determine a tighten BBox in the fine stage
+    bbox_thres=0,              # threshold to determine known free-space in the fine stage
+    mask_cache_thres=0,        # threshold to determine a tighten BBox in the fine stage
     rgbnet_dim=0,                 # feature voxel grid dim
     rgbnet_full_implicit=False,   # let the colors MLP ignore feature voxel grid
     rgbnet_direct=True,           # set to False to treat the first 3 dim of feature voxel grid as diffuse rgb
