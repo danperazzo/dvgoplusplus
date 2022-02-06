@@ -14,6 +14,11 @@ from lib import utils, dvgo
 from lib.load_data import load_data
 from lib.utils import intersect_sphere
 
+def force_cudnn_initialization():
+    s = 32
+    dev = torch.device('cuda')
+    torch.nn.functional.conv2d(torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev))
+
 
 def config_parser():
     '''Define command line arguments
@@ -461,6 +466,7 @@ if __name__=='__main__':
     parser = config_parser()
     args = parser.parse_args()
     cfg = mmcv.Config.fromfile(args.config)
+    force_cudnn_initialization()
 
     # init enviroment
     if torch.cuda.is_available():

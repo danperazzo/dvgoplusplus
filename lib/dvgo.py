@@ -75,7 +75,7 @@ class DirectVoxGO(torch.nn.Module):
                 self.k0_bg_dim = rgbnet_bg_dim
             
             if world_scale_bg is None:
-                self.world_size_bg = self.world_size.clone()
+                self.world_size_bg = self.world_size.clone()*4
                 self.rgbnet_kwargs['world_scale_bg'] = self.world_size_bg
             else:
                 self.world_size_bg = world_scale_bg
