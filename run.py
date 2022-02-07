@@ -16,7 +16,7 @@ from lib.utils import intersect_sphere
 
 def force_cudnn_initialization():
     s = 32
-    dev = torch.device('cuda')
+    dev = torch.device('cuda:0')
     torch.nn.functional.conv2d(torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev))
 
 
