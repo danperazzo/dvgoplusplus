@@ -75,8 +75,7 @@ class DirectVoxGO(torch.nn.Module):
                 self.k0_bg_dim = rgbnet_bg_dim
             
             if world_scale_bg is None:
-                self.world_size_bg = self.world_size.clone()
-                self.world_size_bg[0:2] = self.world_size_bg[0:2]*8 
+                self.world_size_bg = self.world_size.clone()*4
                 self.rgbnet_kwargs['world_scale_bg'] = self.world_size_bg
             else:
                 self.world_size_bg = world_scale_bg
@@ -573,6 +572,12 @@ class DirectVoxGO(torch.nn.Module):
         depth = (rays_o[...,None,:] - rays_pts).norm(dim=-1)
         depth = (weights * depth).sum(-1) + alphainv_cum[...,-1]
         disp = 1 / depth
+        
+        #if self.bg_color:
+        #  rgb = torch.cat([rgb, rgb_bg],dim=-2)
+        #  weights = torch.cat([weights, weights_bg], dim=-1)
+
+
         ret_dict.update({
             'alphainv_cum': alphainv_cum,
             'weights': weights,
