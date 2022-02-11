@@ -82,20 +82,13 @@ class DirectVoxGO(torch.nn.Module):
             self.density_bg = torch.nn.Parameter(torch.zeros([1, 1, *self.world_size_bg]))
 
 
-            self.k0_bg = torch.nn.Parameter(torch.zeros([1, self.k0_bg_dim, *self.world_size_bg]))
+            #self.k0_bg = torch.nn.Parameter(torch.zeros([1, self.k0_bg_dim, *self.world_size_bg]))
             self.register_buffer('posfreq_bg', torch.FloatTensor([(2**i) for i in range(posbase_bg_pe)]))
             self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
 
             # Set dimensions from spatial position and viewdirs
             dim0_bg = (4+4*posbase_bg_pe*2) + (3+3*viewbase_bg_pe*2)
 
-            # Sum dimension witjh dimension from k0
-            if self.rgbnet_full_implicit:
-                pass
-            elif rgbnet_direct:
-                dim0_bg += self.k0_bg_dim
-            else:
-                dim0_bg += self.k0_bg_dim-3
 
 
             # Set rgbnet background
@@ -539,9 +532,9 @@ class DirectVoxGO(torch.nn.Module):
           weights_bg, alphainv_cum_bg = get_ray_marching_ray(alpha_bg )
           mask_bg = ( weights_bg > self.fast_color_thres   )
 
-          k0_bg = torch.zeros(*weights_bg.shape, self.k0_bg_dim).to(weights_bg)
+          #k0_bg = torch.zeros(*weights_bg.shape, self.k0_bg_dim).to(weights_bg)
 
-          k0_view_bg = k0_bg
+          #k0_view_bg = k0_bg
 
           viewdirs_bg_emb = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
           viewdirs_bg_emb = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
@@ -551,7 +544,7 @@ class DirectVoxGO(torch.nn.Module):
           xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
 
           rgb_bg_feat = torch.cat([
-                k0_view_bg[mask_bg],
+                #k0_view_bg[mask_bg],
                 xyz_emb_bg,
                 # TODO: use `rearrange' to make it readable
                 viewdirs_bg_emb.flatten(0,-2).unsqueeze(-2).repeat(1,weights_bg.shape[-1],1)[mask_bg.flatten(0,-2)]
