@@ -24,7 +24,7 @@ class DirectVoxGO(torch.nn.Module):
                  rgbnet_depth=3, rgbnet_width=128,
                  posbase_pe=5, viewbase_pe=4,
                  rgbnet_bg_depth=3, rgbnet_bg_width=128,
-                 posbase_bg_pe=5, viewbase_bg_pe=4,rgbnet_bg_dim=12,world_scale_bg = None,
+                 posbase_bg_pe=10, viewbase_bg_pe=4,rgbnet_bg_dim=12,world_scale_bg = None,
                  **kwargs):
         super(DirectVoxGO, self).__init__()
         self.register_buffer('xyz_min', torch.Tensor(xyz_min))
@@ -87,7 +87,7 @@ class DirectVoxGO(torch.nn.Module):
             self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
 
             # Set dimensions from spatial position and viewdirs
-            dim0_bg = (3+3*posbase_bg_pe*2) + (3+3*viewbase_bg_pe*2)
+            dim0_bg = (4+4*posbase_bg_pe*2) + (3+3*viewbase_bg_pe*2)
 
             # Sum dimension witjh dimension from k0
             if self.rgbnet_full_implicit:
@@ -546,7 +546,7 @@ class DirectVoxGO(torch.nn.Module):
           viewdirs_bg_emb = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
           viewdirs_bg_emb = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
 
-          rays_xyz_bg = self.to_spherical( rays_pts_bg[mask_bg] )
+          rays_xyz_bg =  rays_pts_bg[mask_bg] 
           xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
           xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
 
