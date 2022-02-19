@@ -285,7 +285,7 @@ def spherify_poses(poses, bds, depths):
     return poses_reset, new_poses, bds, depths
 
 
-def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=False, path_zflat=False, load_depths=False):
+def load_llff_data(basedir, factor=8, recenter=False, bd_factor=.75, spherify=False, path_zflat=False, load_depths=False):
 
     poses, bds, imgs, *depths = _load_data(basedir, factor=factor, load_depths=load_depths) # factor=8 downsamples original imgs by 8x
     print('Loaded', basedir, bds.min(), bds.max())
@@ -307,7 +307,7 @@ def load_llff_data(basedir, factor=8, recenter=True, bd_factor=.75, spherify=Fal
     bds *= sc
     depths *= sc
 
-    if recenter:
+    if not spherify:
         poses = recenter_poses(poses)
 
     if spherify:
