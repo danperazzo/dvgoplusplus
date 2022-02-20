@@ -309,11 +309,11 @@ class DirectVoxGO(torch.nn.Module):
       y_pos = xyz_1_r[...,1]
       z_pos = xyz_1_r[...,2]
       
-      r_pos = xyz_1_r[...,3] # Just in case, sum by a tiny number so we dont overflow
-      theta_pos= torch.acos(z_pos)/torch.pi  # Perform some transformations to ensure the theta is between -0.5 and 0.4
-      phi_pos = torch.atan2(y_pos,x_pos)/(2*torch.pi) + 0.5  # Just sum by Pi so that our coordinates goes from -0.5 to 0.5
+      r_pos = xyz_1_r[...,3]+ 0.2  # Just in case, sum by a tiny number so we dont overflow
+      #theta_pos= torch.acos(z_pos)/torch.pi # Perform some transformations to ensure the theta is between -0.5 and 0.4
+      #phi_pos = torch.atan2(y_pos,x_pos)/(2*torch.pi) + 0.5  # Just sum by Pi so that our coordinates goes from -0.5 to 0.5
 
-      sphc_coord = torch.stack([theta_pos,phi_pos, r_pos],dim=-1)
+      sphc_coord = torch.stack([x_pos*r_pos,y_pos*r_pos, z_pos*r_pos],dim=-1)/1.2
 
       return sphc_coord
 
