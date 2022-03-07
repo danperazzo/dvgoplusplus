@@ -7,6 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from lib.utils import intersect_sphere
+import tinycudann as tcnn
+import json
+
 
 HUGE_NUMBER = 1e10
 TINY_NUMBER = 1e-6      # float32 only has 7 decimal digits precision
@@ -80,6 +83,12 @@ class DirectVoxGO(torch.nn.Module):
             else:
                 self.world_size_bg = world_scale_bg
             self.density_bg = torch.nn.Parameter(torch.zeros([1, 1, *self.world_size_bg]))
+            with open("base.json") as f:
+	              config_hash = json.load(f)
+
+            self.encoding_dir_bg = tcnn.Encoding(3, config_hash["dir_encoding"])
+            self.encoding_bg = tcnn.Encoding(3, config_hash["encoding"])
+            #self.network_hash = tcnn.Network(9, 3, config_hash["network"])
 
 
             #self.k0_bg = torch.nn.Parameter(torch.zeros([1, self.k0_bg_dim, *self.world_size_bg]))
@@ -87,7 +96,7 @@ class DirectVoxGO(torch.nn.Module):
             self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
 
             # Set dimensions from spatial position and viewdirs
-            dim0_bg = (4+4*posbase_bg_pe*2) + (3+3*viewbase_bg_pe*2)
+            dim0_bg = self.encoding_bg.n_output_dims  + self.encoding_dir_bg.n_output_dims #(4+4*posbase_bg_pe*2) + self.encoding_dir_bg.n_output_dims  # (4+4*posbase_bg_pe*2) +(3+3*viewbase_bg_pe*2)
 
 
 
@@ -118,7 +127,21 @@ class DirectVoxGO(torch.nn.Module):
             self.rgbnet_direct = rgbnet_direct
             self.register_buffer('posfreq', torch.FloatTensor([(2**i) for i in range(posbase_pe)]))
             self.register_buffer('viewfreq', torch.FloatTensor([(2**i) for i in range(viewbase_pe)]))
-            dim0 = (3+3*posbase_pe*2) + (3+3*viewbase_pe*2)
+
+            with open("base.json") as f:
+	              config_hash = json.load(f)
+            self.encoding_dir = tcnn.Encoding(3, config_hash["dir_encoding"])
+            self.encoding = tcnn.Encoding(3, config_hash["encoding"])
+            
+
+            #self.k0_bg = torch.nn.Parameter(torch.zeros([1, self.k0_bg_dim, *self.world_size_bg]))
+            self.register_buffer('posfreq_bg', torch.FloatTensor([(2**i) for i in range(posbase_bg_pe)]))
+            self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
+
+            # Set dimensions from spatial position and viewdirs
+            dim0 = self.encoding.n_output_dims  + self.encoding_dir.n_output_dims #(4+4*posbase_bg_pe*2) + self.encoding_dir_bg.n_output_dims  # (4+4*posbase_bg_pe*2) +(3+3*viewbase_bg_pe*2)
+
+            #dim0 = (3+3*posbase_pe*2) +  self.encoding_dir.n_output_dims # self.encoding_dir.n_output_dims # (3+3*viewbase_pe*2)
             if self.rgbnet_full_implicit:
                 pass
             elif rgbnet_direct:
@@ -500,11 +523,16 @@ class DirectVoxGO(torch.nn.Module):
             else:
                 k0_view = k0[..., 3:]
                 k0_diffuse = k0[..., :3]
-            viewdirs_emb = (viewdirs.unsqueeze(-1) * self.viewfreq).flatten(-2)
-            viewdirs_emb = torch.cat([viewdirs, viewdirs_emb.sin(), viewdirs_emb.cos()], -1)
+            #viewdirs_emb = (viewdirs.unsqueeze(-1) * self.viewfreq).flatten(-2)
+            #viewdirs_emb = torch.cat([viewdirs, viewdirs_emb.sin(), viewdirs_emb.cos()], -1)
+            viewdirs_emb = self.encoding_dir(torch.reshape(viewdirs,(-1,3)).unsqueeze(-1) ) 
+            viewdirs_emb = torch.reshape(viewdirs_emb, viewdirs.shape[:-1] + viewdirs_emb.shape[-1:] )
+
             rays_xyz = (rays_pts[mask] - self.xyz_min) / (self.xyz_max - self.xyz_min)
-            xyz_emb = (rays_xyz.unsqueeze(-1) * self.posfreq).flatten(-2)
-            xyz_emb = torch.cat([rays_xyz, xyz_emb.sin(), xyz_emb.cos()], -1)
+            xyz_emb = self.encoding(torch.reshape(rays_xyz,(-1,3)) ) 
+            xyz_emb = torch.reshape(xyz_emb, rays_xyz.shape[:-1] + xyz_emb.shape[-1:] )
+            #xyz_emb = (rays_xyz.unsqueeze(-1) * self.posfreq).flatten(-2)
+            #xyz_emb = torch.cat([rays_xyz, xyz_emb.sin(), xyz_emb.cos()], -1)
             rgb_feat = torch.cat([
                 k0_view[mask],
                 xyz_emb,
@@ -536,12 +564,18 @@ class DirectVoxGO(torch.nn.Module):
 
           #k0_view_bg = k0_bg
 
-          viewdirs_bg_emb = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
-          viewdirs_bg_emb = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
+          viewdirs_bg_emb = self.encoding_dir_bg(torch.reshape(viewdirs,(-1,3)).unsqueeze(-1) ) 
+          viewdirs_bg_emb = torch.reshape(viewdirs_bg_emb, viewdirs.shape[:-1] + viewdirs_bg_emb.shape[-1:] )
 
-          rays_xyz_bg =  rays_pts_bg[mask_bg] 
-          xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
-          xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
+          #viewdirs_bg_emb_o = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
+          #viewdirs_bg_emb_o = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
+
+          rays_xyz_bg =  self.to_spherical(rays_pts_bg[mask_bg])
+          xyz_emb_bg = self.encoding_bg(torch.reshape(rays_xyz_bg,(-1,3))) 
+          xyz_emb_bg = torch.reshape(xyz_emb_bg, rays_xyz_bg.shape[:-1] + xyz_emb_bg.shape[-1:] )
+
+          #xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
+          #xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
 
           rgb_bg_feat = torch.cat([
                 #k0_view_bg[mask_bg],
