@@ -14,6 +14,33 @@ import json
 HUGE_NUMBER = 1e10
 TINY_NUMBER = 1e-6      # float32 only has 7 decimal digits precision
 
+class NeRF_bg_network(torch.nn.Module):
+    def __init__(self,dim0_bg,rgbnet_bg_width,  rgbnet_bg_depth, encoding_dirs):
+
+        super(NeRF_bg_network, self).__init__()
+        depth = rgbnet_bg_depth - 1
+        # Set rgbnet background
+        self.rgbnet_bg = nn.Sequential(
+                nn.Linear(dim0_bg, rgbnet_bg_width), nn.ReLU(inplace=True),
+                *[
+                    nn.Sequential(nn.Linear(rgbnet_bg_width, rgbnet_bg_width), nn.ReLU(inplace=True))
+                    for _ in range(rgbnet_bg_depth-2)
+                ]
+            )
+
+        self.directions_layers =  nn.Sequential(nn.Linear(rgbnet_bg_width + encoding_dirs, 3))
+
+        nn.init.constant_(self.directions_layers[-1].bias, 0)
+    
+    def forward(self,points, dirs):
+
+        output = self.rgbnet_bg(points)
+        out_concat = torch.cat( [output,dirs ], -1     )
+        final_out =  self.directions_layers(out_concat)
+
+        return final_out
+        
+
 
 '''Model'''
 class DirectVoxGO(torch.nn.Module):
@@ -96,21 +123,9 @@ class DirectVoxGO(torch.nn.Module):
             self.register_buffer('viewfreq_bg', torch.FloatTensor([(2**i) for i in range(viewbase_bg_pe)]))
 
             # Set dimensions from spatial position and viewdirs
-            dim0_bg = self.encoding_bg.n_output_dims  + self.encoding_dir_bg.n_output_dims #(4+4*posbase_bg_pe*2) + self.encoding_dir_bg.n_output_dims  # (4+4*posbase_bg_pe*2) +(3+3*viewbase_bg_pe*2)
-
-
-
+            
             # Set rgbnet background
-            self.rgbnet_bg = nn.Sequential(
-                nn.Linear(dim0_bg, rgbnet_bg_width), nn.ReLU(inplace=True),
-                *[
-                    nn.Sequential(nn.Linear(rgbnet_bg_width, rgbnet_bg_width), nn.ReLU(inplace=True))
-                    for _ in range(rgbnet_bg_depth-2)
-                ],
-                nn.Linear(rgbnet_width, 3),
-            )
-
-            nn.init.constant_(self.rgbnet_bg[-1].bias, 0)
+            self.rgbnet_bg = NeRF_bg_network(self.encoding_bg.n_output_dims ,rgbnet_bg_width,  rgbnet_bg_depth, self.encoding_dir_bg.n_output_dims)
 
         if rgbnet_dim <= 0:
             # color voxel grid  (coarse stage)
@@ -577,15 +592,15 @@ class DirectVoxGO(torch.nn.Module):
           #xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
           #xyz_emb_bg = torch.cat([rays_xyz_bg, xyz_emb_bg.sin(), xyz_emb_bg.cos()], -1)
 
-          rgb_bg_feat = torch.cat([
-                #k0_view_bg[mask_bg],
-                xyz_emb_bg,
-                # TODO: use `rearrange' to make it readable
-                viewdirs_bg_emb.flatten(0,-2).unsqueeze(-2).repeat(1,weights_bg.shape[-1],1)[mask_bg.flatten(0,-2)]
-            ], -1)
-
+          #rgb_bg_feat = torch.cat([
+          #      #k0_view_bg[mask_bg],
+          #      xyz_emb_bg,
+          #      # TODO: use `rearrange' to make it readable
+          #      viewdirs_bg_emb.flatten(0,-2).unsqueeze(-2).repeat(1,weights_bg.shape[-1],1)[mask_bg.flatten(0,-2)]
+          #  ], -1)
+          #
           rgb_bg_logit = torch.zeros(*weights_bg.shape, 3).to(weights_bg)
-          rgb_bg_logit[mask_bg] = self.rgbnet_bg(rgb_bg_feat)
+          rgb_bg_logit[mask_bg] = self.rgbnet_bg(xyz_emb_bg,viewdirs_bg_emb.flatten(0,-2).unsqueeze(-2).repeat(1,weights_bg.shape[-1],1)[mask_bg.flatten(0,-2)] )
 
           rgb_bg = torch.sigmoid(rgb_bg_logit)
 
