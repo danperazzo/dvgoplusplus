@@ -70,8 +70,8 @@ fine_train.update(dict(
 ''' Template of model and rendering options
 '''
 coarse_model_and_render = dict(
-    num_voxels=302000,           # expected number of voxel
-    num_voxels_base=302000,      # to rescale delta distance
+    num_voxels=301000,           # expected number of voxel
+    num_voxels_base=301000,      # to rescale delta distance
     nearest=False,                # nearest interpolation
     pre_act_density=False,        # pre-activated trilinear interpolation
     in_act_density=False,         # in-activated trilinear interpolation
@@ -93,8 +93,8 @@ coarse_model_and_render = dict(
 
 fine_model_and_render = deepcopy(coarse_model_and_render)
 fine_model_and_render.update(dict(
-    num_voxels=115**3,
-    num_voxels_base=115**3,
+    num_voxels=110**3,
+    num_voxels_base=110**3,
     rgbnet_dim=12,
     alpha_init=1e-2,
     fast_color_thres=1e-4,
