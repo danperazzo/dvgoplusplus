@@ -30,14 +30,14 @@ data = dict(
 ''' Template of training options
 '''
 coarse_train = dict(
-    N_iters=5000,                # number of optimization steps
+    N_iters=2500,                # number of optimization steps
     N_rand=1024,                  # batch size (number of random rays per optimization step)
     lrate_density=1e-1,           # lr of density voxel grid
     lrate_k0=1e-1,                # lr of color/feature voxel grid
     lrate_rgbnet=1e-3,            # lr of the mlp to preduct view-dependent color
     lrate_density_bg=1e-1,           # lr of density voxel grid
     lrate_k0_bg=1e-1,                # lr of color/feature voxel grid
-    lrate_rgbnet_bg=1e-3,            # lr of the mlp to preduct view-dependent color
+    lrate_rgbnet_bg=2e-3,            # lr of the mlp to preduct view-dependent color
     lrate_encoding_dir_bg=1e-2,   # Encoding of hash encoding
     lrate_encoding_dir=1e-2,   # Encoding of hash encoding
     lrate_encoding_bg=1e-2,   # Encoding of hash encoding
@@ -58,7 +58,7 @@ coarse_train = dict(
 
 fine_train = deepcopy(coarse_train)
 fine_train.update(dict(
-    N_iters=10000,
+    N_iters=12500,
     pervoxel_lr=False,
     N_rand=1024,  
     ray_sampler='random',
