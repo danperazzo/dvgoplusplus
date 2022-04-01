@@ -40,7 +40,7 @@ coarse_train = dict(
     lrate_rgbnet_bg=5e-3,            # lr of the mlp to preduct view-dependent color
     lrate_encoding_dir_bg=1e-2,   # Encoding of hash encoding
     lrate_encoding_dir=1e-2,   # Encoding of hash encoding
-    lrate_encoding_bg=1e-2,   # Encoding of hash encoding
+    lrate_encoding_bg=3e-2,   # Encoding of hash encoding
     lrate_encoding=1e-2,   # Encoding of hash encoding
     lrate_decay=20,               # lr decay by 0.1 after every lrate_decay*1000 steps
     pervoxel_lr=True,             # view-count-based lr
@@ -70,8 +70,8 @@ fine_train.update(dict(
 ''' Template of model and rendering options
 '''
 coarse_model_and_render = dict(
-    num_voxels=301000,           # expected number of voxel
-    num_voxels_base=301000,      # to rescale delta distance
+    num_voxels=300990,           # expected number of voxel
+    num_voxels_base=300990,      # to rescale delta distance
     nearest=False,                # nearest interpolation
     pre_act_density=False,        # pre-activated trilinear interpolation
     in_act_density=False,         # in-activated trilinear interpolation
@@ -93,8 +93,8 @@ coarse_model_and_render = dict(
 
 fine_model_and_render = deepcopy(coarse_model_and_render)
 fine_model_and_render.update(dict(
-    num_voxels=110**3,
-    num_voxels_base=110**3,
+    num_voxels=109**3,
+    num_voxels_base=109**3,
     rgbnet_dim=12,
     alpha_init=1e-2,
     fast_color_thres=1e-4,
