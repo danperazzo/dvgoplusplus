@@ -18,7 +18,6 @@ class NeRF_bg_network(torch.nn.Module):
     def __init__(self,dim0_bg,rgbnet_bg_width,  rgbnet_bg_depth, encoding_dirs):
 
         super(NeRF_bg_network, self).__init__()
-        depth = rgbnet_bg_depth - 1
         # Set rgbnet background
         self.rgbnet_bg = nn.Sequential(
                 nn.Linear(dim0_bg, rgbnet_bg_width), nn.ReLU(inplace=True),
@@ -586,7 +585,7 @@ class DirectVoxGO(torch.nn.Module):
           #viewdirs_bg_emb_o = torch.cat([viewdirs, viewdirs_bg_emb.sin(), viewdirs_bg_emb.cos()], -1)
 
           rays_xyz_bg =  self.to_spherical(rays_pts_bg[mask_bg])
-          xyz_emb_bg = self.encoding_bg(torch.reshape(rays_xyz_bg,(-1,3))) 
+          xyz_emb_bg = self.encoding_bg((torch.reshape(rays_xyz_bg,(-1,3)) + 1)/2) 
           xyz_emb_bg = torch.reshape(xyz_emb_bg, rays_xyz_bg.shape[:-1] + xyz_emb_bg.shape[-1:] )
 
           #xyz_emb_bg = (rays_xyz_bg.unsqueeze(-1) * self.posfreq_bg).flatten(-2)
