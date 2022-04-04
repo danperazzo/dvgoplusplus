@@ -539,7 +539,7 @@ class DirectVoxGO(torch.nn.Module):
                 k0_diffuse = k0[..., :3]
             #viewdirs_emb = (viewdirs.unsqueeze(-1) * self.viewfreq).flatten(-2)
             #viewdirs_emb = torch.cat([viewdirs, viewdirs_emb.sin(), viewdirs_emb.cos()], -1)
-            viewdirs_emb = self.encoding_dir(torch.reshape(viewdirs,(-1,3)).unsqueeze(-1) ) 
+            viewdirs_emb = self.encoding_dir((torch.reshape(viewdirs,(-1,3)).unsqueeze(-1)+1)*.5 ) 
             viewdirs_emb = torch.reshape(viewdirs_emb, viewdirs.shape[:-1] + viewdirs_emb.shape[-1:] )
 
             rays_xyz = (rays_pts[mask] - self.xyz_min) / (self.xyz_max - self.xyz_min)
@@ -578,7 +578,7 @@ class DirectVoxGO(torch.nn.Module):
 
           #k0_view_bg = k0_bg
 
-          viewdirs_bg_emb = self.encoding_dir_bg(torch.reshape(viewdirs,(-1,3)).unsqueeze(-1) ) 
+          viewdirs_bg_emb = self.encoding_dir_bg((torch.reshape(viewdirs,(-1,3)).unsqueeze(-1) +1)*.5) 
           viewdirs_bg_emb = torch.reshape(viewdirs_bg_emb, viewdirs.shape[:-1] + viewdirs_bg_emb.shape[-1:] )
 
           #viewdirs_bg_emb_o = (viewdirs.unsqueeze(-1) * self.viewfreq_bg).flatten(-2)
