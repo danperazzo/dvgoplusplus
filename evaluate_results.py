@@ -54,7 +54,7 @@ def get_error_images(loss_func,imgs_dir,target_dir):
 
           score_array.append(loss_func(img_orig,img_tgt))
 
-      score_alls.append(np.array(score_array).mean())
+      score_alls.append(round(np.array(score_array).mean(),3))
     return np.array(score_alls)
 
 def mask_images(imgs_dir,mask_dir):
@@ -62,8 +62,6 @@ def mask_images(imgs_dir,mask_dir):
     for dir_scene_imgs, dir_scene_mask in zip(imgs_dir,mask_dir):
       masked_img_scene = []
       for img_orig,img_mask in zip(dir_scene_imgs, dir_scene_mask):
-
-          #print(img_orig.shape)
 
           masked_img_scene.append(img_orig*img_mask[...,None])
 
@@ -86,6 +84,7 @@ def create_mask_from_images(global_path,image_dic):
             if filepath.endswith(".png"):
                 image = rgb2gray(imread(filepath)/255.)
                 image[image>0.09] = 1.0
+                cv2.imwrite(global_path+image_dic+"mask/"+filepath,image)
                 list_for_this.append(image)
              #   print(image.shape)
               #  print(filepath)
@@ -95,6 +94,34 @@ def create_mask_from_images(global_path,image_dic):
 
 
 print("Helloooo")
+#dvg_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/DirectVoxGo/llff_all_image/africa/000.png")
+#gt_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/Ground_truth/africa/0000.png")
+#mine_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/HashDirectVoxGo++/llff_image_all/africa/000.png")
+#plenox_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/Plenoxels/images_all/africa/0000.png")
+#
+#
+#print(dvg_img.shape)
+#print(gt_img.shape)
+#print(mine_img.shape)
+#print(plenox_img.shape)
+#
+#img_concat = np.concatenate([dvg_img,plenox_img,mine_img,gt_img],axis=1)
+
+#dvg_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/HashDirectVoxGo++/llff_foreground/basket/000.png")
+#plenox_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/Plenoxels/images_fg/basket/0000.png")
+#
+#img_concat = np.concatenate([dvg_img,plenox_img],axis=1)
+
+#dvg_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/HashDirectVoxGo++/llff_mask/basket/000.png")
+#plenox_img = cv2.imread("C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/Plenoxels/mask/basket/0000.png")
+#
+#img_concat = np.concatenate([dvg_img,plenox_img],axis=1)
+#
+#
+#
+#cv2.imwrite("img_test.png",img_concat)
+#
+#exit(0)
 
 path = "C:/Users/Temp/Desktop/DirectVoxGO/Results_texts/"
 
@@ -155,6 +182,7 @@ print("plenoxel:")
 print(plenoxel_masked_psnr,plenoxel_masked_psnr.mean())
 print(plenoxel_masked_ssim,plenoxel_masked_ssim.mean())
 print(plenoxel_masked_lpips,plenoxel_masked_lpips.mean())
+
 
 
 
