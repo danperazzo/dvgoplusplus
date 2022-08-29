@@ -1,5 +1,5 @@
 # DirectVoxGO++: Fast Neural Radiance Fields for Object Reconstruction
-This repository is home to the code for the paper DirectVoxGO++: Fast Neural Radiance Fields for Object Reconstruction.
+This repository is home to the code for the paper DirectVoxGO++: Fast Neural Radiance Fields for Object Reconstruction. Code is coming soon!
 
 
 
