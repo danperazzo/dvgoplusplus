@@ -20,7 +20,7 @@ All config files to reproduce our results:
 ```bash
 $ ls configs/*
 configs/llff:
-africa.py  ship.py  basket.py  
+africa.py  ship.py  basket.py torch.py  
 ```
 
 ## Acknowledgement

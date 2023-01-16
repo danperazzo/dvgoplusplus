@@ -5,3 +5,4 @@
 *.dae
 data
 logs
+tiny-cuda-nn/*

@@ -1,7 +1,7 @@
-expname = 'llff_basket'
+expname = 'llff_torch'
 basedir = './logs/llff'
 data = dict(
-    datadir='./data/llff/basket',
+    datadir='./data/llff/torch',
     dataset_type='llff',
     inverse_y=False,
     flip_x=False,
