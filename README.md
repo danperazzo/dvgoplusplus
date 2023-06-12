@@ -30,10 +30,11 @@ The code base is origined from DirectVoxGO, we thank the authors for releasing t
 ## Citation
 If you find this work helps you, please cite: 
 ```
-@article{perazzodirect,
-  title={DirectVoxGO++: Fast Neural Radiance Fields for Object Reconstruction},
-  author={Perazzo, Daniel and Lima, Joao Paulo and Velho, Luiz and Teichrieb, Veronica},
-  journal={SIBGRAPI 2022},
-  year={2022}
+@article{perazzo2023directvoxgo++,
+  title={DirectVoxGO++: Grid-based fast object reconstruction using radiance fields},
+  author={Perazzo, Daniel and Lima, Jo{\~a}o Paulo and Velho, Luiz and Teichrieb, Veronica},
+  journal={Computers \& Graphics},
+  year={2023},
+  publisher={Elsevier}
 }
 ```
